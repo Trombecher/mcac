@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+button {
+    display: block;
+}
+
+html {
+    --shade-0: #f3f3f3;
+    --shade-1: #ffffff;
+    --shade-2: #dadbe1;
+    --shade-3: #444451;
+    --shade-4: #10101e;
+}
+
+@media (prefers-color-scheme: dark) {
+    html {
+        --shade-0: #090a0e;
+        --shade-1: #0c0c15;
+        --shade-2: #383957;
+        --shade-3: #ABACBA;
+        --shade-4: #e4e4e4;
+    }
+}
