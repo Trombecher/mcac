@@ -1,36 +1,38 @@
-import {BoxArray, Box} from "aena";
-import {insertBoxSet, insertBox, insertBoxToString, insertBoxArray} from "aena/glue";
 import {BoxItem} from "./boxed";
 import {enchantmentData, ItemKind} from "../data/db";
 import {roman} from "../data/constants";
+import {attach, derive, get, List, mutateList, setState, State} from "aena/state";
+import {insert, insertList, insertToString} from "aena";
 
 function UIItem({
-    item,
-    items
-}: {
+                    item,
+                    items,
+                }: {
     item: BoxItem
-    items: BoxArray<BoxItem>
+    items: List<BoxItem>
 }) {
-    const disabled = item.notYetAppliedEnchantments.derive(arr => arr.length === 0);
-    const options = item.kind.derive(kind => {
+    const disabled = derive(item.notYetAppliedEnchantments, arr => arr.length === 0);
+    const options = derive(item.kind, kind => {
         const options = Object.values(ItemKind);
         options.splice(options.indexOf(kind), 1);
         options.sort();
         return options;
     });
 
-    const distributeDisabled = new Box(item.enchantments.size === 0);
-    item.enchantments.addListener(() => distributeDisabled.value = item.enchantments.size === 0);
+    const distributeDisabled = derive(
+        item.enchantments,
+        enchantments => enchantments.length === 0,
+    );
 
     return (
-        <div class={"p-4 border border-shade-2 rounded-xl mb-4 bg-shade-1"}>
-            <div class={"flex gap-4 items-center"}>
+        <div className={"p-4 border border-shade-2 rounded-xl mb-4 bg-shade-1"}>
+            <div className={"flex gap-4 items-center"}>
                 <img
                     alt={""}
-                    src={item.kind.derive(kind => `${kind.toLowerCase().replaceAll(" ", "_")}.png`)}
+                    src={derive(item.kind, kind => `${kind.toLowerCase().replaceAll(" ", "_")}.png`)}
                     width={64}
                     height={64}
-                    class={"[image-rendering:pixelated]"}
+                    className={"[image-rendering:pixelated]"}
                 />
                 <SelectBox
                     options={options}
@@ -38,36 +40,36 @@ function UIItem({
                     selected={item.kind}
                 />
                 <button
-                    class={"border border-shade-2 px-3 py-0.5 rounded-lg enabled:hover:bg-shade-2 transition disabled:text-shade-2"}
+                    className={"border border-shade-2 px-3 py-0.5 rounded-lg enabled:hover:bg-shade-2 transition disabled:text-shade-2"}
                     disabled={distributeDisabled}
                     onclick={() => {
-                        item.enchantments.forEach(enchantment => {
-                            item.enchantments.delete(enchantment);
-
+                        get(item.enchantments).forEach(enchantment => {
                             const book = new BoxItem();
-                            book.enchantments.add(enchantment);
+                            mutateList(book.enchantments, get(book.enchantments).length, 0, enchantment);
 
-                            items.push(book);
+                            mutateList(items, get(items).length, 0, book);
                         });
+
+                        mutateList(item.enchantments, 0, get(item.enchantments).length);
                     }}
                 >Distribute
                 </button>
                 <button
-                    onclick={() => items.splice(items.indexOf(item), 1)}
-                    class={"ml-auto p-1 hover:bg-shade-2 transition rounded-lg"}
+                    onclick={() => mutateList(items, get(items).indexOf(item), 1)}
+                    className={"ml-auto p-1 hover:bg-shade-2 transition rounded-lg"}
                 >
                     <Bin/>
                 </button>
             </div>
-            {insertBoxSet(item.enchantments, boxEnchantment => (
-                <div class={"flex gap-4 my-3"}>
+            {insertList(item.enchantments, boxEnchantment => (
+                <div className={"flex gap-4 my-3"}>
                     <SelectBox
                         options={item.notYetAppliedEnchantments}
                         selected={boxEnchantment.kind}
                         optionMapper={k => k}
                     />
                     <SelectBox
-                        options={boxEnchantment.kind.derive(kind =>
+                        options={derive(boxEnchantment.kind, kind =>
                             (new Array(enchantmentData[kind].maxLevel))
                                 .fill(0)
                                 .map((_, i) => i + 1))}
@@ -75,8 +77,12 @@ function UIItem({
                         optionMapper={option => roman[option as keyof typeof roman]}
                     />
                     <button
-                        class={"ml-auto hover:bg-shade-2 transition rounded-lg p-1"}
-                        onclick={() => item.enchantments.delete(boxEnchantment)}
+                        className={"ml-auto hover:bg-shade-2 transition rounded-lg p-1"}
+                        onclick={() => mutateList(
+                            item.enchantments,
+                            get(item.enchantments).indexOf(boxEnchantment),
+                            1
+                        )}
                     >
                         <Bin/>
                     </button>
@@ -84,7 +90,7 @@ function UIItem({
             ))}
             <button
                 onclick={() => item.addRandomEnchantment()}
-                class={"hover:enabled:bg-shade-0 mt-3 disabled:text-shade-1 transition w-full border border-dashed border-shade-2 rounded-lg text-sm py-1 font-semibold"}
+                className={"hover:enabled:bg-shade-0 mt-3 disabled:text-shade-1 transition w-full border border-dashed border-shade-2 rounded-lg text-sm py-1 font-semibold"}
                 disabled={disabled}
             >+ Add Enchantment
             </button>
@@ -93,39 +99,41 @@ function UIItem({
 }
 
 function SelectBox<T>({
-    options,
-    optionMapper,
-    selected,
-}: {
-    options: Readonly<Box<T[]>>,
+                          options,
+                          optionMapper,
+                          selected,
+                      }: {
+    options: State<T[]>,
     optionMapper: (option: T) => string,
-    selected: Box<T>,
+    selected: State<T>,
 }) {
-    const open = new Box(false);
-    open.addListener(current => {
+    const open = new State(false);
+    attach(open, current => {
         if(!current) return;
         document.onmousedown = ({target}) => {
             if(target === selectBox || selectBox.contains(target as Node)) return;
-            open.value = false;
+            setState(open, false);
             document.onmousedown = null;
         };
     });
 
     const selectBox = (
-        <div class={"relative"}>
+        <div className={"relative"}>
             <button
-                onclick={() => open.value = !open.value}
-                class={open.derive(open => `${open ? "bg-shade-2" : ""} transition py-0.5 px-3 rounded-lg border-shade-2 border`)}
-            >{insertBoxToString(selected, optionMapper)}</button>
+                onclick={() => setState(open, !get(open))}
+                className={derive(open, open =>
+                    `${open ? "bg-shade-2" : ""} transition py-0.5 px-3 rounded-lg border-shade-2 border`)}
+            >{insertToString(selected, optionMapper)}</button>
             <div
-                class={open.derive(open => `${open ? "" : "hidden"} shadow-[#000] shadow-2xl max-h-96 z-50 mt-1 w-64 absolute top-full left-0 bg-shade-1 border border-shade-2 py-1 rounded-lg overflow-x-hidden`)}
+                className={derive(open, open =>
+                    `${open ? "" : "hidden"} shadow-[#000] shadow-2xl max-h-96 z-50 mt-1 w-64 absolute top-full left-0 bg-shade-1 border border-shade-2 py-1 rounded-lg overflow-x-hidden`)}
             >
-                {insertBox(options, options => options.map(option => (
+                {insert(options, options => options.map(option => (
                     <button
-                        class={"block px-3 hover:bg-shade-2 w-full text-left py-0.5"}
+                        className={"block px-3 hover:bg-shade-2 w-full text-left py-0.5"}
                         onclick={() => {
-                            selected.value = option;
-                            open.value = false;
+                            setState(selected, option);
+                            setState(open, false);
                         }}
                     >{optionMapper(option)}</button>
                 )))}
@@ -136,16 +144,16 @@ function SelectBox<T>({
     return selectBox;
 }
 
-export default function Items({items}: {items: BoxArray<BoxItem>}) {
+export default function Items({items}: {items: List<BoxItem>}) {
     return (
         <>
-            {insertBoxArray(items, item => (
+            {insertList(items, item => (
                 <UIItem item={item} items={items}/>
             ))}
             <div>
                 <button
-                    onclick={() => items.push(new BoxItem())}
-                    class={"hover:bg-shade-1 transition font-semibold text-center block w-full py-2 border border-dashed rounded-xl border-shade-2"}
+                    onclick={() => mutateList(items, get(items).length, 0, new BoxItem())}
+                    className={"hover:bg-shade-1 transition font-semibold text-center block w-full py-2 border border-dashed rounded-xl border-shade-2"}
                 >+ Add Item
                 </button>
             </div>
@@ -155,8 +163,8 @@ export default function Items({items}: {items: BoxArray<BoxItem>}) {
 
 function Bin() {
     return (
-        <svg xmlns="http://www.w3.org/2000/svg" class={"fill-shade-3"} viewBox="0 0 24 24" width="24" height="24">
-            <path d="M12 2l-2 0a1 1 0 00-1 1l-6 0a1 1 0 100 2l18 0a1 1 0 100-2l-6 0a1 1 0 00-1-1ZM3 7 5 20C5.1538 21 6 22 7 22L17 22C18 22 18.8462 21 19 20L21 7Z"/>
-        </svg>
+        <svg_ _class={"fill-shade-3"} _viewBox="0 0 24 24" _width="24" _height="24">
+            <path_ _d="M12 2l-2 0a1 1 0 00-1 1l-6 0a1 1 0 100 2l18 0a1 1 0 100-2l-6 0a1 1 0 00-1-1ZM3 7 5 20C5.1538 21 6 22 7 22L17 22C18 22 18.8462 21 19 20L21 7Z"/>
+        </svg_>
     );
 }

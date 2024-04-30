@@ -1,57 +1,54 @@
-import {BoxArray, Box} from "aena";
 import {BoxItem} from "./boxed.ts";
 import Items from "./Items.tsx";
 import {Branch, Enchantment, getBestBranch} from "../data/anvil.ts";
 import Calculation from "./Calculation.tsx";
 import BackgroundWorker from "../bgworker?worker";
-import {insertBoxAsText} from "aena/glue";
+import {attachDeep, get, List, mutateList, setState, State} from "aena/state";
+import {insertToString} from "aena";
 
 const ITEM_SEPARATOR = "---";
 
 export default function App() {
-    const url = new URL(window.location.href);
+    const url = new URL(location.href);
     const worker = new BackgroundWorker();
-    const items = new BoxArray<BoxItem>();
-    const itemCount = new Box(0);
-    items.addListener(() => itemCount.value = items.length);
+    const items = new List<BoxItem>();
 
-    items.addDeepListener(() => {
-        url.searchParams.set("items", items.map(item => item.toString()).join(ITEM_SEPARATOR));
+    attachDeep(items, () => {
+        url.searchParams.set("items", get(items).map(item => item.toString()).join(ITEM_SEPARATOR));
 
         history.replaceState({}, "", url);
     });
 
     const itemsString = url.searchParams.get("items");
     if(itemsString && itemsString.length > 0)
-        itemsString
-            .split(ITEM_SEPARATOR)
-            .forEach(item => items.push(BoxItem.from(item)));
+        mutateList(items, get(items).length, 0, ...itemsString.split(ITEM_SEPARATOR).map(BoxItem.from));
 
-    const lastCalculation = new Box<Branch | undefined | string>(undefined);
+    const lastCalculation = new State<Branch | undefined | string>(undefined);
 
     worker.onmessage = (message: MessageEvent<Set<Branch> | string>) =>
-        lastCalculation.value = typeof message.data === "string"
+        setState(lastCalculation, typeof message.data === "string"
             ? message.data
-            : getBestBranch(message.data);
+            : getBestBranch(message.data));
 
     return (
         <>
-            <header class={"flex w-full justify-center sticky top-0 left-0 bg-shade-0 z-30"}>
-                <div class={"flex max-w-screen-md w-full p-6 items-center gap-4"}>
-                    <h1 class={"font-semibold text-shade-4 text-2xl"}>MC Anvil Combinator <span
-                        class={"text-shade-2"}>V2</span></h1>
+            <header className={"flex w-full justify-center sticky top-0 left-0 bg-shade-0 z-30"}>
+                <div className={"flex max-w-screen-md w-full p-6 items-center gap-4"}>
+                    <h1 className={"font-semibold text-shade-4 text-2xl"}>MC Anvil Combinator <span
+                        className={"text-shade-2"}>V2</span></h1>
                     <button
-                        class={"ml-auto px-3 py-0.5 rounded-lg bg-shade-4 text-shade-1 hover:bg-shade-3 transition font-semibold"}
+                        className={"ml-auto px-3 py-0.5 rounded-lg bg-shade-4 text-shade-1 hover:bg-shade-3 transition font-semibold"}
                         onclick={() => {
                             window.scrollTo({top: 0, behavior: "smooth"});
 
-                            worker.postMessage(items.map(item => ({
-                                kind: item.kind.value,
-                                enchantments: item.enchantments.reduce(new Set<Enchantment>(),
+                            worker.postMessage(get(items).map(item => ({
+                                kind: get(item.kind),
+                                enchantments: get(item.enchantments).reduce(
                                     (enchantments, enchantment) => enchantments.add({
-                                        kind: enchantment.kind.value,
-                                        level: enchantment.level.value
-                                    })
+                                        kind: get(enchantment.kind),
+                                        level: get(enchantment.level)
+                                    }),
+                                    new Set<Enchantment>()
                                 ),
                                 priorWorkPenalty: 0
                             })));
@@ -60,15 +57,15 @@ export default function App() {
                     </button>
                 </div>
             </header>
-            <main class={"max-w-full px-6"}>
+            <main className={"max-w-full px-6"}>
                 <Calculation lastCalculation={lastCalculation}/>
             </main>
-            <main class={"w-full px-6 max-w-screen-md"}>
-                <h2 class={"mb-4 font-semibold text-shade-4 text-xl"}>Items ({insertBoxAsText(itemCount)})</h2>
+            <main className={"w-full px-6 max-w-screen-md"}>
+                <h2 className={"mb-4 font-semibold text-shade-4 text-xl"}>Items ({insertToString(items, items => `${items.length}`)})</h2>
                 <Items items={items}/>
             </main>
-            <footer class={"mt-auto py-6 text-sm"}>
-                © {new Date().getFullYear()} Tobias Hillemanns | <a href="https://github.com/trombecher/mc-anvil-combinator-v2" class={"underline"}>GitHub</a>
+            <footer className={"mt-auto py-6 text-sm"}>
+                © {new Date().getFullYear()} Tobias Hillemanns | <a href="https://github.com/trombecher/mc-anvil-combinator-v2" className={"underline"}>GitHub</a>
             </footer>
         </>
     );
