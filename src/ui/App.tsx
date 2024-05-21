@@ -65,7 +65,7 @@ export default function App() {
                 <Items items={items}/>
             </main>
             <footer className={"mt-auto py-6 text-sm"}>
-                © {new Date().getFullYear()} Tobias Hillemanns | <a href="https://github.com/trombecher/mc-anvil-combinator-v2" className={"underline"}>GitHub</a>
+                © {new Date().getFullYear()} Tobias Hillemanns | <a href="https://github.com/trombecher/mcac" className={"underline"}>GitHub</a>
             </footer>
         </>
     );
